@@ -10,6 +10,7 @@ import {
 import { createRenderer } from "./renderer.js";
 import { createAudio } from "./audio.js";
 import { createInputBuffer, KEY_MAP } from "./input.js";
+import { createPageLifecycle, isPauseToggle } from "./lifecycle.js";
 const canvas = document.querySelector("#scene"),
   ui = document.querySelector("#ui"),
   hud = document.querySelector("#battle-hud"),
@@ -216,6 +217,7 @@ function onKeyDown(e) {
   if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) return;
   if (e.code === "Escape" || e.code === "KeyP") {
     e.preventDefault();
+    if (!isPauseToggle(e)) return;
     if (screen === "battle") pause();
     else if (screen === "paused") resume();
     return;
@@ -279,14 +281,24 @@ try {
     '<section class="overlay error"><h1>WEBGL REQUIRED</h1><p>WebGL을 시작하지 못했습니다. 브라우저의 하드웨어 가속 설정을 확인한 뒤 새로고침해 주세요.</p></section>';
   document.querySelector("#help").disabled = true;
 }
-window.addEventListener(
-  "pagehide",
-  () => {
-    disposed = true;
+const pageLifecycle = createPageLifecycle({
+  pause: blur,
+  resetClock() {
+    accumulator = 0;
+    lastTime = 0;
+  },
+  stopFrame() {
     cancelAnimationFrame(raf);
+  },
+  startFrame() {
+    if (view && !disposed) raf = requestAnimationFrame(frame);
+  },
+  dispose() {
+    disposed = true;
     clearKeys();
     view?.dispose();
     audio.dispose();
   },
-  { once: true },
-);
+});
+window.addEventListener("pagehide", (event) => pageLifecycle.hide(event));
+window.addEventListener("pageshow", (event) => pageLifecycle.show(event));
